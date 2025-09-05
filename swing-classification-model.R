@@ -18,4 +18,4 @@ swing_scaled <- swing_metrics %>%
 swing_classification_model <- Mclust(swing_scaled, G = 10)
 summary(swing_classification_model)
 
-saveRDS("swing_classification_model.RDS")
+#saveRDS(swing_classification_model, "swing_classification_model.RDS")

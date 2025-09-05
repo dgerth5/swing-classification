@@ -3,3 +3,4 @@
 .RData
 .Ruserdata
 statcast_data24.csv
+swing_classification_model.RDS
