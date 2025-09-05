@@ -11,7 +11,7 @@ fg <- read_csv("fangraphs-leaderboards (70).csv") # this is just to get savant i
 swing_metrics <- statcast_data24 %>%
   mutate(attack_direction = if_else(stand == "R", attack_direction, attack_direction * -1),
          count = paste0(balls,"-",strikes)) %>%
-  select(batter, plate_x, plate_z, count, pitch_name, attack_angle, attack_direction, swing_path_tilt, bat_speed, swing_length) %>%
+  select(batter, plate_x, plate_z, count, pitch_name, sz_top, sz_bot, attack_angle, attack_direction, swing_path_tilt, bat_speed, swing_length) %>%
   drop_na(attack_angle, attack_direction, swing_path_tilt, bat_speed, swing_length)
 
 # Normalize swing data
@@ -76,3 +76,6 @@ batter_savant_id <- fg %>%
 batter_swing_summary2 <- left_join(batter_savant_id, 
                                    batter_swing_summary, 
                                    by = c("MLBAMID"= "batter"))
+
+write_csv(batter_swing_summary2, "batter_swing_summary.csv")
+write_csv(swing_metrics, "swing_metrics.csv")
