@@ -2,19 +2,17 @@
 library(shiny)
 library(shinydashboard)
 library(shinyWidgets)
-library(tidyverse)
+library(dplyr)
+library(ggplot2)
 library(readr)
 library(RColorBrewer)
 library(DT)
-library(catboost)
+library(arrow)
 
-# load data
-fg <- read_csv("fangraphs-leaderboards (70).csv")
+# load summary data
 batter_swing_metrics_summary2 <- read_csv("batter_swing_metrics_summary.csv")
-model_df <- read_csv("swing_metrics.csv")   # only needed for count levels & sz params
-
-# load model
-cat_model <- readRDS("swing_class_cat_model.RDS")
+fg <- read_csv("fangraphs-leaderboards (70).csv")
+model_df <- read_csv("swing_metrics.csv")
 
 # name lookup for MLBAMID factor 
 factor_name_df <- model_df %>%
@@ -27,13 +25,14 @@ factor_name_df <- model_df %>%
   rename(MLBAMID = batter) %>%
   distinct()
 
-# strike zone parameters by player
+# strike zone params by player
 sz_params <- model_df %>%
   left_join(factor_name_df, by = c("batter" = "MLBAMID")) %>%
   group_by(Name) %>%
   summarise(top_sz = mean(sz_top, na.rm = TRUE),
             bot_sz = mean(sz_bot, na.rm = TRUE),
             .groups = "drop")
+
 # custom CSS
 custom_css <- "
   .content-wrapper, .right-side { background-color: #f8f9fa; }
@@ -107,48 +106,21 @@ server <- function(input, output) {
       DT::formatRound('wOBAcon', 3) 
   })
   
-  # Swing Plot
+  # Swing Plot (uses precomputed predictions)
   output$swingPlot <- renderPlot({
     req(input$player)
     
-    # Lookup MLBAMID for selected player
-    mlbamid <- factor_name_df$MLBAMID[factor_name_df$Name == input$player]
+    # Open Parquet dataset (does not load all rows into memory)
+    ds <- arrow::open_dataset("prediction_df.parquet")
     
-    # Strike zone params
-    sz <- filter(sz_params, Name == input$player)
+    # Filter just the selected player's rows, collect into R
+    grid <- ds %>%
+      dplyr::filter(Name == input$player) %>%
+      dplyr::select(Name, plate_x, plate_z, pred_swing_type, count) %>%
+      dplyr::collect()
     
-    # Explicit count order (3 rows × 4 cols layout)
-    count_levels <- c("0-0","1-0","2-0","3-0",
-                      "0-1","1-1","2-1","3-1",
-                      "0-2","1-2","2-2","3-2")
-    
-    # Prediction grid
-    grid <- expand.grid(plate_x = seq(-1, 1, length.out = 50),
-                        plate_z = seq(0.5, 4.5, length.out = 50),
-                        count   = count_levels)
-    grid$count <- factor(grid$count, levels = count_levels)
-    
-    # Ensure MLBAMID is categorical with same levels as training
-    grid$MLBAMID <- factor(mlbamid, levels = levels(as.factor(model_df$batter)))
-    
-    # Predict
-    pred_data <- select(grid, count, plate_x, plate_z, MLBAMID)
-    grid_pool <- catboost.load_pool(data = pred_data)
-    grid$pred_swing_type <- catboost.predict(cat_model, grid_pool, prediction_type = "Class") + 1
-    
-    # Keep consistent factor levels
-    all_levels <- as.character(1:10)
-    grid$pred_swing_type <- factor(as.character(grid$pred_swing_type), levels = all_levels)
-    
-    # Dummy rows to preserve legend
-    missing_levels <- setdiff(all_levels, unique(as.character(grid$pred_swing_type)))
-    if (length(missing_levels) > 0) {
-      dummy <- data.frame(plate_x = 10, plate_z = 10,
-                          count = factor(count_levels[1], levels = count_levels),
-                          MLBAMID = factor(mlbamid, levels = levels(as.factor(model_df$batter))),
-                          pred_swing_type = factor(missing_levels, levels = all_levels))
-      grid <- rbind(grid, dummy)
-    }
+    # Strike zone params for this player
+    sz <- dplyr::filter(sz_params, Name == input$player)
     
     # Plot
     ggplot(grid, aes(x = plate_x, y = plate_z, fill = pred_swing_type)) +
@@ -180,10 +152,8 @@ server <- function(input, output) {
             axis.text = element_text(color = "#2c3e50"),
             axis.title = element_text(face = "bold", color = "#2c3e50"))
   })
+  
 }
 
 # Run app
 shinyApp(ui = ui, server = server)
-
-#rsconnect::writeManifest()
-
