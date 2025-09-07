@@ -78,23 +78,14 @@ ui <- dashboardPage(
                   # About Tab
                   tabItem(tabName = "about",
                           fluidRow(
-                            box(title = "About This Application", status = "primary", solidHeader = TRUE, width = 12,
-                                h4("Baseball Swing Analysis Dashboard"),
-                                p("This application uses machine learning to predict swing types based on pitch location and count situation."),
-                                h5("Features:"),
-                                tags$ul(tags$li("Interactive heat maps showing predicted swing types"),
-                                        tags$li("Strike zone visualization for individual players"),
-                                        tags$li("Comprehensive swing metrics including usage rates and performance outcomes"),
-                                        tags$li("Real-time analysis updates")),
-                                h5("How to Use:"),
-                                tags$ol(tags$li("Select a player from the dropdown menu"),
-                                        tags$li("View the swing metrics table showing performance by swing type"),
-                                        tags$li("Explore the heat map showing predicted swing types across different counts"),
-                                        tags$li("The black rectangle represents the player's strike zone")),
-                                br(),
+                            box(title = "About", status = "primary", solidHeader = TRUE, width = 12,
+                                h4("Predicted Swing Type Dashboard"),
+                                p("This app allows the user to see what swing type a hitter is likely to use for different pitch locations."),
+                                p("Swings were classified based on bat speed, swing length, attack angle, attack direction, and swing tilt using a Gaussian Mixture Model."),
+                                p("Predicted swing type is estimated based on the location of the pitch, the count and the specific hitter."),
+                                p("Full explanation can be found here: INSERT URL HERE"),
                                 div(style = "text-align: center; color: #7f8c8d;",
-                                    p("Created by David Gerth. Find me at @dgerth1305 on Twitter/X or https://dgerth5.github.io/")))))))
-)
+                                    p("Created by David Gerth. Find me at @dgerth1305 on Twitter/X or https://dgerth5.github.io/"))))))))
 
 # Server
 server <- function(input, output) {
