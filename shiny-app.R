@@ -15,12 +15,10 @@ model_df <- read_csv("swing_metrics.csv")   # only needed for count levels & sz 
 
 # Factor name lookup
 factor_name_df <- model_df %>%
-  left_join(
-    fg %>% select(MLBAMID, Name) %>%
-      mutate(MLBAMID = as.numeric(MLBAMID)) %>%
-      distinct(),
-    by = c("batter" = "MLBAMID")
-  ) %>%
+  left_join(fg %>% select(MLBAMID, Name) %>%
+              mutate(MLBAMID = as.numeric(MLBAMID)) %>%
+              distinct(),
+            by = c("batter" = "MLBAMID")) %>%
   filter(!is.na(Name)) %>%
   select(Name, batter) %>%
   rename(MLBAMID = batter) %>%
@@ -30,11 +28,9 @@ factor_name_df <- model_df %>%
 sz_params <- model_df %>%
   left_join(factor_name_df, by = c("batter" = "MLBAMID")) %>%
   group_by(Name) %>%
-  summarise(
-    top_sz = mean(sz_top, na.rm = TRUE),
-    bot_sz = mean(sz_bot, na.rm = TRUE),
-    .groups = "drop"
-  )
+  summarise(top_sz = mean(sz_top, na.rm = TRUE),
+            bot_sz = mean(sz_bot, na.rm = TRUE),
+            .groups = "drop")
 
 # Load model
 cat_model <- readRDS("swing_class_cat_model.RDS")
@@ -56,117 +52,48 @@ custom_css <- "
 # UI
 ui <- dashboardPage(
   skin = "blue",
-  
-  dashboardHeader(
-    title = "⚾ Baseball Swing Analytics",
-    titleWidth = 300
-  ),
-  
-  dashboardSidebar(
-    width = 300,
-    sidebarMenu(
-      menuItem("Swing Analysis", tabName = "analysis", icon = icon("chart-line")),
-      menuItem("About", tabName = "about", icon = icon("info-circle"))
-    )
-  ),
-  
-  dashboardBody(
-    tags$head(tags$style(HTML(custom_css))),
-    
-    tabItems(
-      # Main Analysis Tab
-      tabItem(
-        tabName = "analysis",
-        fluidRow(
-          # Player Selection
-          box(
-            title = "🎯 Player Selection", 
-            status = "primary", 
-            solidHeader = TRUE,
-            width = 4,
-            height = "180px",
-            
-            pickerInput(
-              "player",
-              "Choose a Player:",
-              choices = sort(unique(factor_name_df$Name)),
-              selected = sort(unique(factor_name_df$Name))[1],
-              options = pickerOptions(
-                style = "btn-outline-primary",
-                size = 10,
-                liveSearch = TRUE,
-                title = "Choose a player..."
-              )
-            )
-          ),
-          
-          # Player Metrics
-          box(
-            title = "📊 Player Swing Metrics",
-            status = "primary",
-            solidHeader = TRUE,
-            width = 8,
-            height = "550px",
-            
-            DT::dataTableOutput("playerMetricsTable")
-          )
-        ),
-        
-        fluidRow(
-          # Swing Heat Map
-          box(
-            title = "🎯 Swing Type Heat Map by Count",
-            status = "primary",
-            solidHeader = TRUE,
-            width = 12,
-            
-            div(
-              style = "text-align: center; padding: 20px;",
-              plotOutput("swingPlot", height = "700px")
-            )
-          )
-        )
-      ),
-      
-      # About Tab
-      tabItem(
-        tabName = "about",
-        fluidRow(
-          box(
-            title = "ℹ️ About This Application",
-            status = "primary",
-            solidHeader = TRUE,
-            width = 12,
-            
-            h4("Baseball Swing Analysis Dashboard"),
-            p("This application uses machine learning to predict swing types based on pitch location and count situation."),
-            
-            h5("Features:"),
-            tags$ul(
-              tags$li("Interactive heat maps showing predicted swing types"),
-              tags$li("Strike zone visualization for individual players"),
-              tags$li("Comprehensive swing metrics including usage rates and performance outcomes"),
-              tags$li("Real-time analysis updates")
-            ),
-            
-            h5("How to Use:"),
-            tags$ol(
-              tags$li("Select a player from the dropdown menu"),
-              tags$li("View the swing metrics table showing performance by swing type"),
-              tags$li("Explore the heat map showing predicted swing types across different counts"),
-              tags$li("The black rectangle represents the player's strike zone")
-            ),
-            
-            br(),
-            div(
-              style = "text-align: center; color: #7f8c8d;",
-              p("Built with R Shiny • CatBoost ML Model • Professional Analytics")
-            )
-          )
-        )
-      )
-    )
-  )
+  dashboardHeader(title = "Predicted Swing Type App", titleWidth = 300),
+  dashboardSidebar(width = 300,
+                   sidebarMenu(menuItem("Swing Analysis", tabName = "analysis", icon = icon("chart-line")),
+                               menuItem("About", tabName = "about", icon = icon("info-circle")))),
+  dashboardBody(tags$head(tags$style(HTML(custom_css))),
+                tabItems(
+                  # Main Analysis Tab
+                  tabItem(tabName = "analysis",
+                          fluidRow(
+                            # Player Selection
+                            box(title = "Player Selection", status = "primary", solidHeader = TRUE, width = 4, height = "180px",
+                                pickerInput("player", "Choose a Player:",
+                                            choices = sort(unique(factor_name_df$Name)),
+                                            selected = sort(unique(factor_name_df$Name))[1],
+                                            options = pickerOptions(style = "btn-outline-primary", size = 10,
+                                                                    liveSearch = TRUE, title = "Choose a player..."))),
+                            # Player Metrics
+                            box(title = "Swing Type Metrics By Player", status = "primary", solidHeader = TRUE, width = 8, height = "550px",
+                                DT::dataTableOutput("playerMetricsTable"))),
+                          fluidRow(
+                            # Swing Heat Map
+                            box(title = "Swing Type Heat Map by Count", status = "primary", solidHeader = TRUE, width = 12,
+                                div(style = "text-align: center; padding: 20px;", plotOutput("swingPlot", height = "700px"))))),
+                  # About Tab
+                  tabItem(tabName = "about",
+                          fluidRow(
+                            box(title = "About This Application", status = "primary", solidHeader = TRUE, width = 12,
+                                h4("Baseball Swing Analysis Dashboard"),
+                                p("This application uses machine learning to predict swing types based on pitch location and count situation."),
+                                h5("Features:"),
+                                tags$ul(tags$li("Interactive heat maps showing predicted swing types"),
+                                        tags$li("Strike zone visualization for individual players"),
+                                        tags$li("Comprehensive swing metrics including usage rates and performance outcomes"),
+                                        tags$li("Real-time analysis updates")),
+                                h5("How to Use:"),
+                                tags$ol(tags$li("Select a player from the dropdown menu"),
+                                        tags$li("View the swing metrics table showing performance by swing type"),
+                                        tags$li("Explore the heat map showing predicted swing types across different counts"),
+                                        tags$li("The black rectangle represents the player's strike zone")),
+                                br(),
+                                div(style = "text-align: center; color: #7f8c8d;",
+                                    p("Created by David Gerth. Find me at @dgerth1305 on Twitter/X or https://dgerth5.github.io/")))))))
 )
 
 # Server
@@ -175,34 +102,21 @@ server <- function(input, output) {
   # Metrics Table
   output$playerMetricsTable <- DT::renderDataTable({
     req(input$player)
-    
     player_metrics <- batter_swing_metrics_summary2 %>%
       filter(Name == input$player) %>%
       select(pred_swing_type, tot_swings, swing_usage, whiff_rate, barrel_rate, wOBAcon) %>%
       arrange(pred_swing_type)
-    
-    DT::datatable(
-      player_metrics,
-      options = list(
-        pageLength = 15,
-        scrollX = FALSE,
-        dom = 't',
-        columnDefs = list(list(className = 'dt-center', targets = "_all"))
-      ),
-      colnames = c('Swing Type', 'Total Swings', 'Usage Rate', 'Whiff Rate', 'Barrel Rate', 'wOBAcon'),
-      rownames = FALSE,
-      caption = paste("Swing metrics for", input$player)
-    ) %>%
-      DT::formatStyle(
-        columns = 1:6,
-        backgroundColor = "#f8f9fa",
-        border = "1px solid #dee2e6"
-      ) %>%
+    DT::datatable(player_metrics,
+                  options = list(pageLength = 15, scrollX = FALSE, dom = 't',
+                                 columnDefs = list(list(className = 'dt-center', targets = "_all"))),
+                  colnames = c('Swing Type', 'Total Swings', 'Usage Rate', 'Whiff Rate', 'Barrel Rate', 'wOBAcon'),
+                  rownames = FALSE,
+                  caption = paste("Swing metrics for", input$player)) %>%
+      DT::formatStyle(columns = 1:6, backgroundColor = "#f8f9fa", border = "1px solid #dee2e6") %>%
       DT::formatPercentage(c('swing_usage', 'whiff_rate', 'barrel_rate'), 1) %>%
       DT::formatRound('wOBAcon', 3)
   })
   
-  # Swing Plot
   # Swing Plot
   output$swingPlot <- renderPlot({
     req(input$player)
@@ -219,19 +133,13 @@ server <- function(input, output) {
                       "0-2","1-2","2-2","3-2")
     
     # Prediction grid
-    grid <- expand.grid(
-      plate_x = seq(-1, 1, length.out = 50),
-      plate_z = seq(0.5, 4.5, length.out = 50),
-      count   = count_levels
-    )
-    
+    grid <- expand.grid(plate_x = seq(-1, 1, length.out = 50),
+                        plate_z = seq(0.5, 4.5, length.out = 50),
+                        count   = count_levels)
     grid$count <- factor(grid$count, levels = count_levels)
     
     # Ensure MLBAMID is categorical with same levels as training
-    grid$MLBAMID <- factor(
-      mlbamid,
-      levels = levels(as.factor(model_df$batter))  # align with training
-    )
+    grid$MLBAMID <- factor(mlbamid, levels = levels(as.factor(model_df$batter)))
     
     # Predict
     pred_data <- select(grid, count, plate_x, plate_z, MLBAMID)
@@ -245,12 +153,10 @@ server <- function(input, output) {
     # Dummy rows to preserve legend
     missing_levels <- setdiff(all_levels, unique(as.character(grid$pred_swing_type)))
     if (length(missing_levels) > 0) {
-      dummy <- data.frame(
-        plate_x = 10, plate_z = 10,
-        count = factor(count_levels[1], levels = count_levels),
-        MLBAMID = factor(mlbamid, levels = levels(as.factor(model_df$batter))),
-        pred_swing_type = factor(missing_levels, levels = all_levels)
-      )
+      dummy <- data.frame(plate_x = 10, plate_z = 10,
+                          count = factor(count_levels[1], levels = count_levels),
+                          MLBAMID = factor(mlbamid, levels = levels(as.factor(model_df$batter))),
+                          pred_swing_type = factor(missing_levels, levels = all_levels))
       grid <- rbind(grid, dummy)
     }
     
@@ -258,42 +164,32 @@ server <- function(input, output) {
     ggplot(grid, aes(x = plate_x, y = plate_z, fill = pred_swing_type)) +
       geom_tile(alpha = 0.85) +
       facet_wrap(~count, ncol = 4, labeller = labeller(count = function(x) paste("Count:", x))) +
-      scale_fill_brewer(
-        type = "qual", palette = "Paired",
-        name = "Predicted\nSwing Type",
-        guide = guide_legend(title.position = "top", title.hjust = 0.5, ncol = 1)
-      ) +
-      geom_rect(
-        data = sz,
-        aes(xmin = -0.705, xmax = 0.705, ymin = bot_sz, ymax = top_sz),
-        fill = NA, color = "#2c3e50", linewidth = 1.5, inherit.aes = FALSE
-      ) +
-      labs(
-        title = paste("Predicted Swing Types for", input$player),
-        subtitle = "Heat map showing swing type predictions across different count situations",
-        x = "Horizontal Plate Position (feet)", 
-        y = "Vertical Plate Position (feet)",
-        caption = "Black rectangle indicates strike zone boundaries"
-      ) +
+      scale_fill_brewer(type = "qual", palette = "Paired",
+                        name = "Predicted\nSwing Type",
+                        guide = guide_legend(title.position = "top", title.hjust = 0.5, ncol = 1)) +
+      geom_rect(data = sz,
+                aes(xmin = -0.705, xmax = 0.705, ymin = bot_sz, ymax = top_sz),
+                fill = NA, color = "#2c3e50", linewidth = 1.5, inherit.aes = FALSE) +
+      labs(title = paste("Predicted Swing Types for", input$player),
+           subtitle = "Season: 2024",
+           x = "Horizontal Plate Position (feet)", 
+           y = "Vertical Plate Position (feet)",
+           caption = "Black rectangle indicates strike zone boundaries") +
       coord_cartesian(xlim = c(-1, 1), ylim = c(0.5, 4.5)) +
       theme_minimal(base_size = 12) +
-      theme(
-        plot.title = element_text(size = 16, face = "bold", hjust = 0.5, color = "#2c3e50"),
-        plot.subtitle = element_text(size = 12, hjust = 0.5, color = "#7f8c8d"),
-        plot.caption = element_text(size = 10, color = "#95a5a6"),
-        strip.text = element_text(size = 11, face = "bold", color = "#2c3e50"),
-        strip.background = element_rect(fill = "#ecf0f1", color = "#bdc3c7"),
-        legend.position = "right",
-        legend.title = element_text(size = 11, face = "bold"),
-        legend.text = element_text(size = 10),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(color = "#ecf0f1", size = 0.5),
-        axis.text = element_text(color = "#2c3e50"),
-        axis.title = element_text(face = "bold", color = "#2c3e50")
-      )
+      theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5, color = "#2c3e50"),
+            plot.subtitle = element_text(size = 12, hjust = 0.5, color = "#7f8c8d"),
+            plot.caption = element_text(size = 10, color = "#95a5a6"),
+            strip.text = element_text(size = 11, face = "bold", color = "#2c3e50"),
+            strip.background = element_rect(fill = "#ecf0f1", color = "#bdc3c7"),
+            legend.position = "right",
+            legend.title = element_text(size = 11, face = "bold"),
+            legend.text = element_text(size = 10),
+            panel.grid.minor = element_blank(),
+            panel.grid.major = element_line(color = "#ecf0f1", size = 0.5),
+            axis.text = element_text(color = "#2c3e50"),
+            axis.title = element_text(face = "bold", color = "#2c3e50"))
   })
-  
-  
 }
 
 # Run app
