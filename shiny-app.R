@@ -8,34 +8,27 @@ library(readr)
 library(RColorBrewer)
 library(DT)
 
-# Load and prepare data
-model_df <- read_csv("swing_metrics.csv")
+# Load data
 fg <- read_csv("fangraphs-leaderboards (70).csv")
 batter_swing_metrics_summary2 <- read_csv("batter_swing_metrics_summary.csv")
+model_df <- read_csv("swing_metrics.csv")   # only needed for count levels & sz params
 
-# Join player names, ensuring matching data types
-model_df <- model_df %>%
-  mutate(batter = as.numeric(batter)) %>%
+# Factor name lookup
+factor_name_df <- model_df %>%
   left_join(
-    fg %>% 
-      select(MLBAMID, Name) %>%
+    fg %>% select(MLBAMID, Name) %>%
       mutate(MLBAMID = as.numeric(MLBAMID)) %>%
       distinct(),
     by = c("batter" = "MLBAMID")
   ) %>%
   filter(!is.na(Name)) %>%
-  mutate(
-    count = as.factor(count),
-    pitch_name = as.factor(pitch_name),
-    pred_swing_type = as.factor(pred_swing_type),
-    batter = as.factor(batter)
-  )
+  select(Name, batter) %>%
+  rename(MLBAMID = batter) %>%
+  distinct()
 
-# Load model
-cat_model <- readRDS("swing_class_cat_model.RDS")
-
-# Calculate strike zone parameters by player
-sz_params <- model_df %>% 
+# Strike zone parameters by player
+sz_params <- model_df %>%
+  left_join(factor_name_df, by = c("batter" = "MLBAMID")) %>%
   group_by(Name) %>%
   summarise(
     top_sz = mean(sz_top, na.rm = TRUE),
@@ -43,58 +36,21 @@ sz_params <- model_df %>%
     .groups = "drop"
   )
 
-# Define custom CSS
+# Load model
+cat_model <- readRDS("swing_class_cat_model.RDS")
+
+# Custom CSS
 custom_css <- "
-  .content-wrapper, .right-side {
-    background-color: #f8f9fa;
-  }
-  
-  .main-header .logo {
-    background-color: #1e3a5f !important;
-    color: white !important;
-    font-weight: bold;
-  }
-  
-  .main-header .navbar {
-    background-color: #1e3a5f !important;
-  }
-  
-  .main-sidebar {
-    background-color: #2c3e50 !important;
-  }
-  
-  .sidebar-menu > li.active > a {
-    background-color: #34495e !important;
-    border-left: 3px solid #3498db !important;
-  }
-  
-  .box {
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    border-top: 3px solid #3498db;
-  }
-  
-  .box-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 8px 8px 0 0;
-  }
-  
-  .box-header h3 {
-    color: white !important;
-    font-weight: 600;
-  }
-  
-  .selectize-input {
-    border-radius: 6px;
-    border: 2px solid #e9ecef;
-    transition: border-color 0.3s ease;
-  }
-  
-  .selectize-input:focus {
-    border-color: #3498db;
-    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
-  }
+  .content-wrapper, .right-side { background-color: #f8f9fa; }
+  .main-header .logo { background-color: #1e3a5f !important; color: white !important; font-weight: bold; }
+  .main-header .navbar { background-color: #1e3a5f !important; }
+  .main-sidebar { background-color: #2c3e50 !important; }
+  .sidebar-menu > li.active > a { background-color: #34495e !important; border-left: 3px solid #3498db !important; }
+  .box { border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-top: 3px solid #3498db; }
+  .box-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px 8px 0 0; }
+  .box-header h3 { color: white !important; font-weight: 600; }
+  .selectize-input { border-radius: 6px; border: 2px solid #e9ecef; transition: border-color 0.3s ease; }
+  .selectize-input:focus { border-color: #3498db; box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25); }
 "
 
 # UI
@@ -122,7 +78,7 @@ ui <- dashboardPage(
       tabItem(
         tabName = "analysis",
         fluidRow(
-          # Player Selection Box - shorter height
+          # Player Selection
           box(
             title = "🎯 Player Selection", 
             status = "primary", 
@@ -133,8 +89,8 @@ ui <- dashboardPage(
             pickerInput(
               "player",
               "Choose a Player:",
-              choices = sort(unique(model_df$Name)),
-              selected = sort(unique(model_df$Name))[1],
+              choices = sort(unique(factor_name_df$Name)),
+              selected = sort(unique(factor_name_df$Name))[1],
               options = pickerOptions(
                 style = "btn-outline-primary",
                 size = 10,
@@ -144,7 +100,7 @@ ui <- dashboardPage(
             )
           ),
           
-          # Player Metrics Box - taller height
+          # Player Metrics
           box(
             title = "📊 Player Swing Metrics",
             status = "primary",
@@ -157,7 +113,7 @@ ui <- dashboardPage(
         ),
         
         fluidRow(
-          # Main Heat Map Plot
+          # Swing Heat Map
           box(
             title = "🎯 Swing Type Heat Map by Count",
             status = "primary",
@@ -216,11 +172,10 @@ ui <- dashboardPage(
 # Server
 server <- function(input, output) {
   
-  # Player metrics table
+  # Metrics Table
   output$playerMetricsTable <- DT::renderDataTable({
     req(input$player)
     
-    # Get metrics for selected player
     player_metrics <- batter_swing_metrics_summary2 %>%
       filter(Name == input$player) %>%
       select(pred_swing_type, tot_swings, swing_usage, whiff_rate, barrel_rate, wOBAcon) %>%
@@ -247,68 +202,71 @@ server <- function(input, output) {
       DT::formatRound('wOBAcon', 3)
   })
   
-  # Main swing plot
+  # Swing Plot
+  # Swing Plot
   output$swingPlot <- renderPlot({
     req(input$player)
     
-    # Get player data
-    player_data <- filter(model_df, Name == input$player)
-    batter_id <- as.character(unique(player_data$batter)[1])
+    # Lookup MLBAMID for selected player
+    mlbamid <- factor_name_df$MLBAMID[factor_name_df$Name == input$player]
     
-    # Strike zone for this player
+    # Strike zone params
     sz <- filter(sz_params, Name == input$player)
     
-    # Create prediction grid
+    # Explicit count order (3 rows × 4 cols layout)
+    count_levels <- c("0-0","1-0","2-0","3-0",
+                      "0-1","1-1","2-1","3-1",
+                      "0-2","1-2","2-2","3-2")
+    
+    # Prediction grid
     grid <- expand.grid(
       plate_x = seq(-1, 1, length.out = 50),
       plate_z = seq(0.5, 4.5, length.out = 50),
-      count = unique(model_df$count)[-13]
-    ) %>%
-      mutate(batter = factor(batter_id, levels = levels(model_df$batter)))
+      count   = count_levels
+    )
     
-    # Make predictions
-    pred_data <- select(grid, count, plate_x, plate_z, batter)
-    grid_pool <- catboost.load_pool(data = as.data.frame(pred_data))
-    grid$pred_swing_type <- catboost.predict(cat_model, grid_pool, prediction_type = "Class")
+    grid$count <- factor(grid$count, levels = count_levels)
     
-    # Adjustments for swing type colors
-    all_levels <- as.character(0:9)
+    # Ensure MLBAMID is categorical with same levels as training
+    grid$MLBAMID <- factor(
+      mlbamid,
+      levels = levels(as.factor(model_df$batter))  # align with training
+    )
+    
+    # Predict
+    pred_data <- select(grid, count, plate_x, plate_z, MLBAMID)
+    grid_pool <- catboost.load_pool(data = pred_data)
+    grid$pred_swing_type <- catboost.predict(cat_model, grid_pool, prediction_type = "Class") + 1
+    
+    # Keep consistent factor levels
+    all_levels <- as.character(1:10)
     grid$pred_swing_type <- factor(as.character(grid$pred_swing_type), levels = all_levels)
     
+    # Dummy rows to preserve legend
     missing_levels <- setdiff(all_levels, unique(as.character(grid$pred_swing_type)))
     if (length(missing_levels) > 0) {
       dummy <- data.frame(
-        plate_x = 10,
-        plate_z = 10,
-        count = unique(player_data$count)[1],
-        batter = batter_id,
+        plate_x = 10, plate_z = 10,
+        count = factor(count_levels[1], levels = count_levels),
+        MLBAMID = factor(mlbamid, levels = levels(as.factor(model_df$batter))),
         pred_swing_type = factor(missing_levels, levels = all_levels)
       )
       grid <- rbind(grid, dummy)
     }
     
-    # Enhanced plot
-    ggplot(grid, aes(x = plate_x, y = plate_z, fill = factor(pred_swing_type))) +
+    # Plot
+    ggplot(grid, aes(x = plate_x, y = plate_z, fill = pred_swing_type)) +
       geom_tile(alpha = 0.85) +
       facet_wrap(~count, ncol = 4, labeller = labeller(count = function(x) paste("Count:", x))) +
       scale_fill_brewer(
-        type = "qual", 
-        palette = "Paired", 
+        type = "qual", palette = "Paired",
         name = "Predicted\nSwing Type",
-        guide = guide_legend(
-          title.position = "top",
-          title.hjust = 0.5,
-          ncol = 1
-        )
+        guide = guide_legend(title.position = "top", title.hjust = 0.5, ncol = 1)
       ) +
       geom_rect(
         data = sz,
         aes(xmin = -0.705, xmax = 0.705, ymin = bot_sz, ymax = top_sz),
-        fill = NA, 
-        color = "#2c3e50", 
-        linewidth = 1.5, 
-        inherit.aes = FALSE,
-        linetype = "solid"
+        fill = NA, color = "#2c3e50", linewidth = 1.5, inherit.aes = FALSE
       ) +
       labs(
         title = paste("Predicted Swing Types for", input$player),
@@ -334,6 +292,8 @@ server <- function(input, output) {
         axis.title = element_text(face = "bold", color = "#2c3e50")
       )
   })
+  
+  
 }
 
 # Run app
