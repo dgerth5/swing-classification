@@ -13,3 +13,9 @@ test-shiny.R
 test-shiny2.R
 batter_swing_summary2.csv
 batter_swing_metrics_summary.csv
+factor_name_df.csv
+precomputed_predictions.rds
+predictions_df.parquet
+prediction_df.parquet
+prediction_df2_compressed.rds
+rsconnect/
