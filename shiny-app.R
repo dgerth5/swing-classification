@@ -8,12 +8,12 @@ library(readr)
 library(RColorBrewer)
 library(DT)
 
-# Load data
+# load data
 fg <- read_csv("fangraphs-leaderboards (70).csv")
 batter_swing_metrics_summary2 <- read_csv("batter_swing_metrics_summary.csv")
 model_df <- read_csv("swing_metrics.csv")   # only needed for count levels & sz params
 
-# Factor name lookup
+# name lookup for MLBAMID factor 
 factor_name_df <- model_df %>%
   left_join(fg %>% select(MLBAMID, Name) %>%
               mutate(MLBAMID = as.numeric(MLBAMID)) %>%
@@ -24,7 +24,7 @@ factor_name_df <- model_df %>%
   rename(MLBAMID = batter) %>%
   distinct()
 
-# Strike zone parameters by player
+# strike zone parameters by player
 sz_params <- model_df %>%
   left_join(factor_name_df, by = c("batter" = "MLBAMID")) %>%
   group_by(Name) %>%
@@ -32,10 +32,10 @@ sz_params <- model_df %>%
             bot_sz = mean(sz_bot, na.rm = TRUE),
             .groups = "drop")
 
-# Load model
+# load model
 cat_model <- readRDS("swing_class_cat_model.RDS")
 
-# Custom CSS
+# custom CSS
 custom_css <- "
   .content-wrapper, .right-side { background-color: #f8f9fa; }
   .main-header .logo { background-color: #1e3a5f !important; color: white !important; font-weight: bold; }
