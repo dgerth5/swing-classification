@@ -96,7 +96,7 @@ server <- function(input, output) {
     player_metrics <- batter_swing_metrics_summary2 %>%
       filter(Name == input$player) %>%
       select(pred_swing_type, tot_swings, swing_usage, whiff_rate, barrel_rate, wOBAcon) %>%
-      arrange(pred_swing_type)
+      arrange(-swing_usage)
     DT::datatable(player_metrics,
                   options = list(pageLength = 15, scrollX = FALSE, dom = 't',
                                  columnDefs = list(list(className = 'dt-center', targets = "_all"))),
@@ -105,7 +105,7 @@ server <- function(input, output) {
                   caption = paste("Swing metrics for", input$player)) %>%
       DT::formatStyle(columns = 1:6, backgroundColor = "#f8f9fa", border = "1px solid #dee2e6") %>%
       DT::formatPercentage(c('swing_usage', 'whiff_rate', 'barrel_rate'), 1) %>%
-      DT::formatRound('wOBAcon', 3)
+      DT::formatRound('wOBAcon', 3) 
   })
   
   # Swing Plot
