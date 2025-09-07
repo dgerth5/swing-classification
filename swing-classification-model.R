@@ -10,8 +10,11 @@ fg <- read_csv("fangraphs-leaderboards (70).csv") # this is just to get savant i
 # Normalize attack direction to be RHH facing
 swing_metrics <- statcast_data24 %>%
   mutate(attack_direction = if_else(stand == "R", attack_direction, attack_direction * -1),
-         count = paste0(balls,"-",strikes)) %>%
-  select(batter, plate_x, plate_z, count, pitch_name, sz_top, sz_bot, attack_angle, attack_direction, swing_path_tilt, bat_speed, swing_length) %>%
+         count = paste0(balls,"-",strikes),
+         bbe = if_else(description == "hit_into_play", 1, 0),
+         barrel = if_else((launch_speed * 1.5 - launch_angle) >= 117 & (launch_speed + launch_angle) >= 124 & launch_speed >= 98 & launch_angle >=4 & launch_angle <= 50, 1, 0),
+         whiff = if_else(description %in% c("swinging_strike","swinging_strike_blocked"), 1, 0)) %>%
+  select(batter, plate_x, plate_z, count, pitch_name, sz_top, sz_bot, events, bbe, woba_value, barrel, whiff, launch_speed, launch_angle, barrel, attack_angle, attack_direction, swing_path_tilt, bat_speed, swing_length) %>%
   drop_na(attack_angle, attack_direction, swing_path_tilt, bat_speed, swing_length)
 
 # Normalize swing data
@@ -21,8 +24,8 @@ swing_scaled <- swing_metrics %>%
   as.data.frame()
 
 # Model
-swing_classification_model <- Mclust(swing_scaled, G = 10)
-summary(swing_classification_model)
+# swing_classification_model <- Mclust(swing_scaled, G = 10)
+# summary(swing_classification_model)
 
 #saveRDS(swing_classification_model, "swing_classification_model.RDS") # save model as RDS
 
@@ -70,12 +73,33 @@ batter_swing_summary <- swing_metrics %>%
            apply(1, function(x) gsub("pct_", "", names(x)[which.max(x)]))) %>%
   select(batter, tot_swings, starts_with("pct_"), n_types_over10, most_used_swing)
 
+batter_swing_metrics_summary <- swing_metrics %>%
+  group_by(batter, pred_swing_type) %>%
+  summarise(tot_bbe = sum(bbe),
+            whiff_rate = round(mean(whiff),2),
+            tot_barrel = sum(barrel, na.rm=TRUE),
+            tot_wobacon = sum(if_else(bbe == 1, woba_value, 0)),
+            tot_swings = n()) %>%
+  mutate(barrel_rate = if_else(tot_bbe == 0, 0, round(tot_barrel / tot_bbe,2)),
+         wOBAcon = if_else(tot_bbe == 0, 0, round(tot_wobacon / tot_bbe,3)),
+         swing_usage = round(tot_swings / sum(tot_swings),2)) %>%
+  ungroup() %>%
+  select(batter, pred_swing_type, tot_swings, swing_usage, whiff_rate, barrel_rate, wOBAcon)
+
 batter_savant_id <- fg %>%
   select(MLBAMID, Name)
 
 batter_swing_summary2 <- left_join(batter_savant_id, 
                                    batter_swing_summary, 
-                                   by = c("MLBAMID"= "batter"))
+                                   by = c("MLBAMID"= "batter")) %>%
+  drop_na()
+
+batter_swing_metrics_summary2 <- left_join(batter_savant_id, 
+                                           batter_swing_metrics_summary, 
+                                           by = c("MLBAMID"= "batter")) %>%
+  drop_na()
+
 
 write_csv(batter_swing_summary2, "batter_swing_summary.csv")
 write_csv(swing_metrics, "swing_metrics.csv")
+write_csv(batter_swing_metrics_summary2, "batter_swing_summary2.csv")
