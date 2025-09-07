@@ -2,16 +2,19 @@
 library(shiny)
 library(shinydashboard)
 library(shinyWidgets)
-library(catboost)
 library(tidyverse)
 library(readr)
 library(RColorBrewer)
 library(DT)
+library(catboost)
 
 # load data
 fg <- read_csv("fangraphs-leaderboards (70).csv")
 batter_swing_metrics_summary2 <- read_csv("batter_swing_metrics_summary.csv")
 model_df <- read_csv("swing_metrics.csv")   # only needed for count levels & sz params
+
+# load model
+cat_model <- readRDS("swing_class_cat_model.RDS")
 
 # name lookup for MLBAMID factor 
 factor_name_df <- model_df %>%
@@ -31,10 +34,6 @@ sz_params <- model_df %>%
   summarise(top_sz = mean(sz_top, na.rm = TRUE),
             bot_sz = mean(sz_bot, na.rm = TRUE),
             .groups = "drop")
-
-# load model
-cat_model <- readRDS("swing_class_cat_model.RDS")
-
 # custom CSS
 custom_css <- "
   .content-wrapper, .right-side { background-color: #f8f9fa; }
@@ -186,5 +185,5 @@ server <- function(input, output) {
 # Run app
 shinyApp(ui = ui, server = server)
 
-rsconnect::writeManifest()
+#rsconnect::writeManifest()
 
