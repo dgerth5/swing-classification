@@ -102,4 +102,4 @@ batter_swing_metrics_summary2 <- left_join(batter_savant_id,
 
 write_csv(batter_swing_summary2, "batter_swing_summary.csv")
 write_csv(swing_metrics, "swing_metrics.csv")
-write_csv(batter_swing_metrics_summary2, "batter_swing_summary2.csv")
+write_csv(batter_swing_metrics_summary2, "batter_swing_metrics_summary.csv")
