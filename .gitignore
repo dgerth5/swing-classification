@@ -19,3 +19,4 @@ predictions_df.parquet
 prediction_df.parquet
 prediction_df2_compressed.rds
 rsconnect/
+precomputed_predictions_small.rds
