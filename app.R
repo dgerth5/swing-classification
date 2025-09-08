@@ -1,4 +1,3 @@
-# Load libraries
 library(shiny)
 library(shinydashboard)
 library(shinyWidgets)
@@ -7,14 +6,14 @@ library(ggplot2)
 library(readr)
 library(RColorBrewer)
 library(DT)
-library(arrow)
 
-# load summary data
+# load summary data + precomputed predictions
 batter_swing_metrics_summary2 <- read_csv("batter_swing_metrics_summary.csv")
 fg <- read_csv("fangraphs-leaderboards (70).csv")
 model_df <- read_csv("swing_metrics.csv")
+prediction_df <- readRDS("precomputed_predictions_small.rds")
 
-# name lookup for MLBAMID factor 
+# name lookup for MLBAMID factor
 factor_name_df <- model_df %>%
   left_join(fg %>% select(MLBAMID, Name) %>%
               mutate(MLBAMID = as.numeric(MLBAMID)) %>%
@@ -51,81 +50,105 @@ custom_css <- "
 ui <- dashboardPage(
   skin = "blue",
   dashboardHeader(title = "Predicted Swing Type App", titleWidth = 300),
-  dashboardSidebar(width = 300,
-                   sidebarMenu(menuItem("Swing Analysis", tabName = "analysis", icon = icon("chart-line")),
-                               menuItem("About", tabName = "about", icon = icon("info-circle")))),
-  dashboardBody(tags$head(tags$style(HTML(custom_css))),
-                tabItems(
-                  # Main Analysis Tab
-                  tabItem(tabName = "analysis",
-                          fluidRow(
-                            # Player Selection
-                            box(title = "Player Selection", status = "primary", solidHeader = TRUE, width = 4, height = "180px",
-                                pickerInput("player", "Choose a Player:",
-                                            choices = sort(unique(factor_name_df$Name)),
-                                            selected = sort(unique(factor_name_df$Name))[1],
-                                            options = pickerOptions(style = "btn-outline-primary", size = 10,
-                                                                    liveSearch = TRUE, title = "Choose a player..."))),
-                            # Player Metrics
-                            box(title = "Swing Type Metrics By Player", status = "primary", solidHeader = TRUE, width = 8, height = "550px",
-                                DT::dataTableOutput("playerMetricsTable"))),
-                          fluidRow(
-                            # Swing Heat Map
-                            box(title = "Swing Type Heat Map by Count", status = "primary", solidHeader = TRUE, width = 12,
-                                div(style = "text-align: center; padding: 20px;", plotOutput("swingPlot", height = "700px"))))),
-                  # About Tab
-                  tabItem(tabName = "about",
-                          fluidRow(
-                            box(title = "About", status = "primary", solidHeader = TRUE, width = 12,
-                                h4("Predicted Swing Type Dashboard"),
-                                p("This app allows the user to see what swing type a hitter is likely to use for different pitch locations."),
-                                p("Swings were classified based on bat speed, swing length, attack angle, attack direction, and swing tilt using a Gaussian Mixture Model."),
-                                p("Predicted swing type is estimated based on the location of the pitch, the count and the specific hitter."),
-                                p("Full explanation can be found here: INSERT URL HERE"),
-                                div(style = "text-align: center; color: #7f8c8d;",
-                                    p("Created by David Gerth. Find me at @dgerth1305 on Twitter/X or https://dgerth5.github.io/"))))))))
+  dashboardSidebar(
+    width = 300,
+    sidebarMenu(menuItem("Swing Analysis", tabName = "analysis", icon = icon("chart-line")),
+                menuItem("About", tabName = "about", icon = icon("info-circle")))
+  ),
+  dashboardBody(
+    tags$head(tags$style(HTML(custom_css))),
+    tabItems(
+      # Main Analysis Tab
+      tabItem(
+        tabName = "analysis",
+        fluidRow(
+          # Player Selection
+          box(
+            title = "Player Selection", status = "primary", solidHeader = TRUE,
+            width = 4, height = "180px",
+            pickerInput(
+              "player", "Choose a Player:",
+              choices = sort(unique(factor_name_df$Name)),
+              selected = sort(unique(factor_name_df$Name))[1],
+              options = pickerOptions(
+                style = "btn-outline-primary", size = 10,
+                liveSearch = TRUE, title = "Choose a player..."
+              )
+            )
+          ),
+          # Player Metrics
+          box(
+            title = "Swing Type Metrics By Player", status = "primary", solidHeader = TRUE,
+            width = 8, height = "550px",
+            DT::dataTableOutput("playerMetricsTable")
+          )
+        ),
+        fluidRow(
+          # Swing Heat Map
+          box(
+            title = "Swing Type Heat Map by Count", status = "primary", solidHeader = TRUE,
+            width = 12,
+            div(style = "text-align: center; padding: 20px;",
+                plotOutput("swingPlot", height = "700px"))
+          )
+        )
+      ),
+      # About Tab
+      tabItem(
+        tabName = "about",
+        fluidRow(
+          box(
+            title = "About", status = "primary", solidHeader = TRUE, width = 12,
+            h4("Predicted Swing Type Dashboard"),
+            p("This app allows the user to see what swing type a hitter is likely to use for different pitch locations."),
+            p("Swings were classified based on bat speed, swing length, attack angle, attack direction, and swing tilt using a Gaussian Mixture Model."),
+            p("Predicted swing type is estimated based on the location of the pitch, the count and the specific hitter."),
+            p("Full explanation can be found here: INSERT URL HERE"),
+            div(
+              style = "text-align: center; color: #7f8c8d;",
+              p("Created by David Gerth. Find me at @dgerth1305 on Twitter/X or https://dgerth5.github.io/")
+            )
+          )
+        )
+      )
+    )
+  )
+)
 
-# Server
+# --- Server ---
 server <- function(input, output) {
   
-  # Metrics Table
+  # Player Metrics Table
   output$playerMetricsTable <- DT::renderDataTable({
     req(input$player)
     player_metrics <- batter_swing_metrics_summary2 %>%
       filter(Name == input$player) %>%
       select(pred_swing_type, tot_swings, swing_usage, whiff_rate, barrel_rate, wOBAcon) %>%
       arrange(-swing_usage)
-    DT::datatable(player_metrics,
-                  options = list(pageLength = 15, scrollX = FALSE, dom = 't',
-                                 columnDefs = list(list(className = 'dt-center', targets = "_all"))),
-                  colnames = c('Swing Type', 'Total Swings', 'Usage Rate', 'Whiff Rate', 'Barrel Rate', 'wOBAcon'),
-                  rownames = FALSE,
-                  caption = paste("Swing metrics for", input$player)) %>%
+    
+    DT::datatable(
+      player_metrics,
+      options = list(pageLength = 15, scrollX = FALSE, dom = 't',
+                     columnDefs = list(list(className = 'dt-center', targets = "_all"))),
+      colnames = c('Swing Type', 'Total Swings', 'Usage Rate', 'Whiff Rate', 'Barrel Rate', 'wOBAcon'),
+      rownames = FALSE,
+      caption = paste("Swing metrics for", input$player)) %>%
       DT::formatStyle(columns = 1:6, backgroundColor = "#f8f9fa", border = "1px solid #dee2e6") %>%
       DT::formatPercentage(c('swing_usage', 'whiff_rate', 'barrel_rate'), 1) %>%
       DT::formatRound('wOBAcon', 3) 
   })
   
-  # Swing Plot (uses precomputed predictions)
+  # Swing Plot
   output$swingPlot <- renderPlot({
     req(input$player)
     
-    # Open Parquet dataset (does not load all rows into memory)
-    ds <- arrow::open_dataset("prediction_df.parquet")
+    grid <- prediction_df %>% filter(Name == input$player)
+    sz <- filter(sz_params, Name == input$player)
     
-    # Filter just the selected player's rows, collect into R
-    grid <- ds %>%
-      dplyr::filter(Name == input$player) %>%
-      dplyr::select(Name, plate_x, plate_z, pred_swing_type, count) %>%
-      dplyr::collect()
-    
-    # Strike zone params for this player
-    sz <- dplyr::filter(sz_params, Name == input$player)
-    
-    # Plot
     ggplot(grid, aes(x = plate_x, y = plate_z, fill = pred_swing_type)) +
       geom_tile(alpha = 0.85) +
-      facet_wrap(~count, ncol = 4, labeller = labeller(count = function(x) paste("Count:", x))) +
+      facet_wrap(~count, ncol = 4,
+                 labeller = labeller(count = function(x) paste("Count:", x))) +
       scale_fill_brewer(type = "qual", palette = "Paired",
                         name = "Predicted\nSwing Type",
                         guide = guide_legend(title.position = "top", title.hjust = 0.5, ncol = 1)) +
@@ -152,8 +175,7 @@ server <- function(input, output) {
             axis.text = element_text(color = "#2c3e50"),
             axis.title = element_text(face = "bold", color = "#2c3e50"))
   })
-  
 }
 
-# Run app
+# run app
 shinyApp(ui = ui, server = server)
